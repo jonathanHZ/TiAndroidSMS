@@ -1,27 +1,27 @@
-# appcelerator-sms Module
+# sms Module
 
 ## Description
 
 TODO: Enter your module description here
 
-## Accessing the appcelerator-sms Module
+## Accessing the sms Module
 
 To access this module from JavaScript, you would do the following:
 
-    var appcelerator_sms = require("ti.android.sms");
+	var sms = require("ti.android.sms");
 
-The appcelerator_sms variable is a reference to the Module object.
+The sms variable is a reference to the Module object.	
 
 ## Reference
 
 TODO: If your module has an API, you should document
 the reference here.
 
-### appcelerator_sms.function
+### ___PROJECTNAMEASIDENTIFIER__.function
 
 TODO: This is an example of a module function.
 
-### appcelerator_sms.property
+### ___PROJECTNAMEASIDENTIFIER__.property
 
 TODO: This is an example of a module property.
 
@@ -32,7 +32,7 @@ TODO: Enter your usage example here
 ## Author
 
 TODO: Enter your author name, email and other contact
-details you want to share here.
+details you want to share here. 
 
 ## License
 

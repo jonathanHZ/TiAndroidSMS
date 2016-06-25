@@ -8,14 +8,17 @@
  */
 package ti.android.sms;
 
+import java.util.ArrayList;
+
+import org.appcelerator.kroll.KrollFunction;
 import org.appcelerator.kroll.KrollModule;
 import org.appcelerator.kroll.annotations.Kroll;
 import org.appcelerator.kroll.KrollDict;
-
 import org.appcelerator.titanium.TiApplication;
+import org.appcelerator.titanium.TiBaseActivity;
+import org.appcelerator.titanium.TiC;
 import org.appcelerator.kroll.common.Log;
 import org.appcelerator.kroll.common.TiConfig;
-
 
 import android.app.Activity;
 import android.app.PendingIntent;
@@ -24,6 +27,10 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.telephony.SmsManager;
+import android.Manifest;
+import android.app.Activity;
+import android.content.pm.PackageManager;
+import android.os.Build;
 
 @Kroll.module(name="Sms", id="ti.android.sms")
 public class SmsModule extends KrollModule
@@ -35,6 +42,10 @@ public class SmsModule extends KrollModule
 
 	private static final String MESSAGE_SENT = "SMS_SENT";
 	private static final String MESSAGE_DELIVERED = "SMS_DELIVERED";
+	
+	private BroadcastReceiver sendBroadcastReceiver;
+	private BroadcastReceiver deliveryBroadcastReceiver;
+	
 	
 	@Kroll.constant
 	public static final int SENT = 0;
@@ -61,16 +72,14 @@ public class SmsModule extends KrollModule
 	{
 		Log.d(LCAT, "inside onAppCreate");
 	}
-	
+
 	
 	void setupIntentReceivers() {
 		
 		Activity currentActivity = TiApplication.getInstance().getCurrentActivity();
-		//Activity currentActivity = this.getActivity();
 		
 		//let's register broadcast receivers
-		
-		BroadcastReceiver sentReceiver = new BroadcastReceiver(){
+		sendBroadcastReceiver = new BroadcastReceiver(){
 			@Override
 			public void onReceive(Context context, Intent intent) {
 				KrollDict event;
@@ -91,10 +100,10 @@ public class SmsModule extends KrollModule
 		};
 		
 		//---when the SMS has been sent---
-		currentActivity.registerReceiver(sentReceiver, new IntentFilter(MESSAGE_SENT));
+		currentActivity.registerReceiver(sendBroadcastReceiver, new IntentFilter(MESSAGE_SENT));
 
 		
-		BroadcastReceiver deliveredReceiver = new BroadcastReceiver(){
+		deliveryBroadcastReceiver = new BroadcastReceiver(){
 			@Override
 			public void onReceive(Context context, Intent intent) {
 				KrollDict event;
@@ -115,7 +124,7 @@ public class SmsModule extends KrollModule
 		}; 
 		
 		//---when the SMS has been delivered---
-		currentActivity.registerReceiver(deliveredReceiver, new IntentFilter(MESSAGE_DELIVERED));        
+		currentActivity.registerReceiver(deliveryBroadcastReceiver, new IntentFilter(MESSAGE_DELIVERED));  
 	}
 	
 	public KrollDict createEventObject (boolean success, int result, String resultMessage) 
@@ -128,29 +137,85 @@ public class SmsModule extends KrollModule
 		return event;
 	}
 	
-
 	// Methods
+	@Kroll.method
+	private boolean hasSendMessagePermission() {
+	    if (Build.VERSION.SDK_INT < 23) {
+	        return true;
+	    }
+	    Activity currentActivity = TiApplication.getInstance().getCurrentActivity();
+	    if (currentActivity.checkSelfPermission(Manifest.permission.SEND_SMS) == PackageManager.PERMISSION_GRANTED) {
+	        return true;
+	    } 
+	    return false;
+	}
+		
+	@Kroll.method
+	public void requestSendMessagePermissions(@Kroll.argument(optional=true)KrollFunction permissionCallback)
+	{
+		if (hasSendMessagePermission()) {
+			return;
+		}
+
+		if (TiBaseActivity.cameraCallbackContext == null) {
+			TiBaseActivity.cameraCallbackContext = getKrollObject();
+		}
+		TiBaseActivity.cameraPermissionCallback = permissionCallback;
+		String[] permissions = null;
+		permissions = new String[] {Manifest.permission.SEND_SMS};
+		
+
+		Activity currentActivity = TiApplication.getInstance().getCurrentActivity();		
+		currentActivity.requestPermissions(permissions, TiC.PERMISSION_CODE_CAMERA);
+		
+	}
+	
 	@Kroll.method
 	public void sendSMS(String recipient, String messageBody)
 	{
 		
-		Activity currentActivity = this.getActivity();
+		Activity currentActivity = TiApplication.getInstance().getCurrentActivity();
 
 		Intent sentIntent = new Intent(MESSAGE_SENT);
+		PendingIntent sentPI = PendingIntent.getBroadcast(currentActivity, 0,sentIntent, 0);
+		
 		Intent deliveredIntent = new Intent(MESSAGE_DELIVERED);
+		PendingIntent deliveredPI = PendingIntent.getBroadcast(currentActivity, 0,deliveredIntent, 0);
 		
-		PendingIntent sentPI = PendingIntent.getBroadcast(currentActivity, 0,
-				sentIntent, 0);
-
-		PendingIntent deliveredPI = PendingIntent.getBroadcast(currentActivity, 0,
-				deliveredIntent, 0);
+		SmsManager smsManager = SmsManager.getDefault();
 		
-		SmsManager sms = SmsManager.getDefault();
+//		
 		
-		sms.sendTextMessage(recipient, null, messageBody, sentPI, deliveredPI);
-
+		ArrayList<String> multipartSmsText = smsManager.divideMessage(messageBody);
+		int smsSize = multipartSmsText.size();
+		
+		if (smsSize == 1) {
+			smsManager.sendTextMessage(recipient, null, messageBody, sentPI, deliveredPI);
+		}else{
+			
+			//Create the arraylist PendingIntents for use it.
+			ArrayList<PendingIntent> sentPiList = new ArrayList<PendingIntent>(smsSize);
+			ArrayList<PendingIntent> deliverPiList = new ArrayList<PendingIntent>(smsSize);
+			
+			for (int i=0; i<smsSize; i++) {
+				sentPiList.add(sentPI);
+				deliverPiList.add(deliveredPI);
+			}
+			
+			//Try to send the sms message
+			smsManager.sendMultipartTextMessage(recipient, null, multipartSmsText, sentPiList, deliverPiList);	
+		}
+		
 	}
+
 	
+	@Kroll.method
+	public void unRegister()
+	{
+		Activity currentActivity = TiApplication.getInstance().getCurrentActivity();
+		currentActivity.unregisterReceiver(sendBroadcastReceiver);
+		currentActivity.unregisterReceiver(deliveryBroadcastReceiver);
+	}
 
 }
 

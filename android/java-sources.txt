@@ -1,0 +1,2 @@
+"/Users/JhernandezZ/Documents/Appcelerator_Studio_Workspace/titanium-sms/android/build/generated/java/ti/android/sms/SmsBootstrap.java"
+"/Users/JhernandezZ/Documents/Appcelerator_Studio_Workspace/titanium-sms/android/src/ti/android/sms/SmsModule.java"
